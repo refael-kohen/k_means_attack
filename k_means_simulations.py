@@ -108,8 +108,10 @@ def run_simulations(n_simulations, num_deletions, disc_acc, n, uniform_dist, uni
             if n_p.is_integer():
                 if n_p < 2 or n_p > n - n11:
                     n11_int_n_p_invalid_count += 1
+                    logger.info(f"failed due to n11_int_n_p_invalid_count")
                 elif n11 < 1 or n11 > n - 2:
                     n11_int_n11_invalid_count += 1
+                    logger.info(f"failed due to n11_int_n11_invalid_count")
                 else:
                     results.append((n11, int(n_p)))
                     print(f"Found distinct valid pair: (n11={n11}, n_p={n_p}) with real parameters:"
@@ -118,6 +120,8 @@ def run_simulations(n_simulations, num_deletions, disc_acc, n, uniform_dist, uni
                           f"n_p={km._n_p}, S_p={km._s_p}, "
                           f"sample: {km._X} and group P: {km._P}")
 
+        if len(results) > 1:
+            logger.info(f"Found {len(results)} distinct valid pairs")
         if n11_int_n11_invalid_count > 0 or n11_int_n_p_invalid_count > 0 or len(results) > 1 or len(results) == 0:
             total_int_failed_counts += 1
         else:
