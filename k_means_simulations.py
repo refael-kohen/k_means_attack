@@ -1,8 +1,4 @@
-from email.policy import default
 from time import time
-import numpy as np
-import os
-import sys
 import argparse
 import logging
 from k_means import KMeansHeuristic
@@ -12,15 +8,15 @@ from utils import setup_logger
 c21_c22_equals_count = 0
 c11_c21_c22_c12_zero_count = 0
 _n11_invalid_count = 0
-_n12_less_2_count = 0
 _np_less_2_count = 0
 _n11_zero_count = 0
-_n12_zero_count = 0
 
 # Counter for total failed attacks depending
 total_clustering_failed_counts = 0
 # Counter for total failed attacks depending on integer (n11, n_p) pairs
 total_int_failed_counts = 0
+# Counter for total failed attacks with multiple results
+total_int_mul_solutions_counts = 0
 # Counter for total successful attacks
 total_successful_attacks = 0
 
@@ -29,22 +25,17 @@ def attack_success_validations(c11=None, c12=None, c21=None, c22=None, _n11=None
     global c21_c22_equals_count
     global c11_c21_c22_c12_zero_count
     global _n11_invalid_count
-    global _n12_less_2_count
     global _np_less_2_count
     global _n11_zero_count
-    global _n12_zero_count
 
     if c21 == c22:
         c21_c22_equals_count += 1
         return False
-    if c11 - c21 + c22 - c12 == 0:
+    if c11 - c21 + c12 - c22 == 0:
         c11_c21_c22_c12_zero_count += 1
         return False
-    if _n11 == 0 or _n11 > n - 2:
+    if _n11 < 2 or _n11 > n - 1:
         _n11_invalid_count += 1
-        return False
-    if _n12 < 2:
-        _n12_less_2_count += 1
         return False
     if _np < 2:
         _np_less_2_count += 1
@@ -73,6 +64,7 @@ def run_simulations(n_simulations, num_deletions, disc_acc, n, uniform_dist, uni
     """
     global total_clustering_failed_counts
     global total_int_failed_counts
+    global total_int_mul_solutions_counts
     global total_successful_attacks
 
     for sim_num in range(n_simulations):
@@ -85,7 +77,8 @@ def run_simulations(n_simulations, num_deletions, disc_acc, n, uniform_dist, uni
         _n11 = km._n1
         _n12 = km._n2
         c21, c22, p1, p2 = km.delete_largest_points(num_deletions)
-
+        _n21 = km._n1
+        _n22 = km._n2
         _n_p = km._n_p
         logger.info(f"centroids step 2: {c21}, {c22} p1={p1}, p2={p2}, np={_n_p}")
 
@@ -104,33 +97,56 @@ def run_simulations(n_simulations, num_deletions, disc_acc, n, uniform_dist, uni
         n11_int_n11_invalid_count = 0
         n11_int_n_p_invalid_count = 0
         for n11 in range(1, n):
-            n_p = ((c11 - c21 + c22 - c12) * n11 + (c12 - c22) * n + c21 - p1) / (c21 - c22)
-            if n_p.is_integer():
-                if n_p < 2 or n_p > n - n11:
+            denominator = c21 - c22
+            if abs(denominator) < 1e-9:
+                logger.debug(f"Near-zero denominator: {denominator}")
+            n_p_est = ((c22 - c12) * n - (c11 - c21 - c12 + c22) * n11 - num_deletions * c22 + p1) / (c21 - c22)
+            n_p_est_rounded = round(n_p_est)
+            if abs(n_p_est - n_p_est_rounded) < 1e-9:  # Near integer
+                logger.debug(
+                    f"Near-integer n_p: {n_p_est} (rounded: {round(n_p_est)}) for n11={n11} with real parameters: n_p={km._n_p}, n11={_n11}")
+                logger.debug(
+                    f"  Numerator: {(c22 - c12) * n - (c11 - c21 - c12 + c22) * n11 - num_deletions * c22 + p1}")
+                logger.debug(f"  Denominator: {c21 - c22}")
+            # if abs(n_p_est - n_p_est_rounded) < 1e-9:  # n_p.is_integer():
+            rel_error = abs(n_p_est - n_p_est_rounded) / max(abs(n_p_est), 1)
+            if rel_error < 1e-9:
+                if n_p_est < 2 or n_p_est > n11:
                     n11_int_n_p_invalid_count += 1
-                    logger.info(f"failed due to n11_int_n_p_invalid_count")
-                elif n11 < 1 or n11 > n - 2:
+                    logger.debug(f"failed due to n11_int_n_p_invalid_count")
+                elif n11 < 2 or n11 > n - 1:
                     n11_int_n11_invalid_count += 1
-                    logger.info(f"failed due to n11_int_n11_invalid_count")
+                    logger.debug(f"failed due to n11_int_n11_invalid_count")
                 else:
-                    results.append((n11, int(n_p)))
-                    print(f"Found distinct valid pair: (n11={n11}, n_p={n_p}) with real parameters:"
-                          f"c11={c11}, c12={c12},c21={c21}, c22={c22}, "
-                          f"n={n}, n11={n11}, n12={n - n11} "
-                          f"n_p={km._n_p}, S_p={km._s_p}, "
-                          f"sample: {km._X} and group P: {km._P}")
+                    results.append((n11, int(n_p_est)))
+                    logger.info(
+                        f"Found distinct valid pair: (estimated n11={n11}, n_p={n_p_est}) with real parameters: n11={_n11}, n_p={km._n_p}, \n"
+                        f"c11={c11}, c12={c12}, c21={c21}, c22={c22}, "
+                        f"n={n}, n11={_n11}, n12={_n12}, n21={_n21}, n22={_n22}, p1={p1}, num_deletions={num_deletions}, "
+                        f"n_p={km._n_p}, S_p={km._s_p}, "
+                        f"sample: {km._X} and group P: {km._P}")
 
         if len(results) > 1:
-            logger.info(f"Found {len(results)} distinct valid pairs")
-        if n11_int_n11_invalid_count > 0 or n11_int_n_p_invalid_count > 0 or len(results) > 1 or len(results) == 0:
+            logger.debug(f"Found {len(results)} distinct valid pairs")
+        if n11_int_n11_invalid_count > 0 or n11_int_n_p_invalid_count > 0 or len(results) == 0:
             total_int_failed_counts += 1
+        if len(results) > 1:
+            total_int_mul_solutions_counts += 1
         else:
             total_successful_attacks += 1
 
         logger.info(
             f"Simulation {sim_num + 1} completed, {total_successful_attacks} successful attacks so far ({total_successful_attacks * 100 / (sim_num + 1):.2f}%).")
 
+    logger.info(
+        f"The percentage of failures due to simulation problems: {total_clustering_failed_counts * 100 / (n_simulations):.2f}%")
+    logger.info(
+        f"The percentage of failures due to equation set problems: {total_int_failed_counts * 100 / (n_simulations):.2f}%")
+    logger.info(
+        f"The percentage of failures due to multiple solutions: {total_int_mul_solutions_counts * 100 / (n_simulations):.2f}%")
 
+    logger.info(f"The percentage of successful attacks: {total_successful_attacks * 100 / (n_simulations):.2f}%")
+    
 def log_params(args, parser, logger):
     cmd = ["python k_means_simulations.py"]
     for arg, value in vars(args).items():
@@ -158,8 +174,8 @@ def main():
 
     parser.add_argument("--n", type=int, default=500,
                         help="Number of points to sample from the range in each simulation.")
-
-    parser.add_argument("--uniform-dist", action='store_true', help="Whether to use uniform distribution (if not set, use bimodal distribution).")
+    parser.add_argument("--uniform-dist", action='store_true',
+                        help="Whether to use uniform distribution (if not set, use bimodal distribution).")
     parser.add_argument("--unif-range-min", type=float, default=0.0,
                         help="Minimum value of the range for uniform distribution.")
     parser.add_argument("--unif-range-max", type=float, default=1.0,
@@ -199,7 +215,7 @@ if __name__ == "__main__":
 # Recommended command:
 
 # For bimodal distribuiton:
-# python k_means_simulations.py --n-simulations 1000 --num-deletions 25 --disc-acc 1 --n 400 --bimodal-cluster1-mean 3.0 --bimodal-cluster1-std 0.4 --bimodal-cluster2-mean 7.0 --bimodal-cluster2-std 0.4 --bimodal-cluster1-ratio 0.45
+#  python k_means_simulations.py --n-simulations 1000 --num-deletions 20 --disc-acc 2 --n 500 --bimodal-cluster1-mean 0.4 --bimodal-cluster1-std 0.15 --bimodal-cluster2-mean 0.6 --bimodal-cluster2-std 0.15 --bimodal-cluster1-ratio 0.4
 
 # For uniform distribuion:
-# python k_means_simulations.py --n-simulations 1000 --num-deletions 30 --disc-acc 1 --n 300 --uniform-dist --unif-range-min 0.0 --unif-range-max 10.0
+# python k_means_simulations.py --n-simulations 1000 --num-deletions 20 --disc-acc 2 --n 200 --uniform-dist --unif-range-min 0.0 --unif-range-max 5.0
