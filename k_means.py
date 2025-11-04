@@ -7,11 +7,22 @@ import matplotlib.pyplot as plt
 
 
 class KMeansHeuristic:
-    def __init__(self, rng, C_init, n, k, max_iter=10):
-        self.max_iter = max_iter
-        self._X = np.sort(np.random.choice(rng, size=n, replace=True))
+    def __init__(self, disc_acc, uniform_dist, unif_range_min, unif_range_max, n, bimodal_cluster1_mean=None, bimodal_cluster1_std=None, bimodal_cluster2_mean=None,
+                 bimodal_cluster2_std=None, bimodal_cluster1_ratio=None, max_iter=10):
+
+        if uniform_dist:
+            C_init = np.sort(np.random.rand(2))  # Choose initial cluster centroids randomly with coordinates in [0,1]
+            self._X = np.sort(np.round(np.random.uniform(unif_range_min, unif_range_max, n), decimals=disc_acc))
+        else:
+            C_init = np.sort(np.random.rand(2)) * (bimodal_cluster2_mean - bimodal_cluster1_mean) + bimodal_cluster1_mean
+            # Generate bimodal data: two Gaussian clusters
+            n1 = int(n * bimodal_cluster1_ratio)
+            n2 = n - n1
+            cluster1_data = np.random.normal(bimodal_cluster1_mean, bimodal_cluster1_std, n1)
+            cluster2_data = np.random.normal(bimodal_cluster2_mean, bimodal_cluster2_std, n2)
+            self._X = np.sort(np.round(np.concatenate([cluster1_data, cluster2_data]), decimals=disc_acc))
+
         self.C_init = C_init
-        self.k = k  # number of clusters
         self.n = n  # number of data points
         self._n1 = None  # number of points in cluster 1
         self._n2 = None  # number of points in cluster 2
@@ -19,8 +30,8 @@ class KMeansHeuristic:
         self.c2 = None  # center of cluster 2
         self._P = None  # points moved to cluster 2 after deletions
         self._n_p = None  # number of points moved to cluster 2 after deletions
-        self._s_p = None # sum of points moved to cluster 2 after deletions
-        # self._c2_start = None  # index of the first point classified to cluster 2
+        self._s_p = None  # sum of points moved to cluster 2 after deletions
+        self.max_iter = max_iter
 
     #############################################
     # classify
@@ -55,8 +66,8 @@ class KMeansHeuristic:
         classifications = np.zeros(self.n, dtype=int)
         classifications[c2_start_it:] = 1
         # s1.scatter(X[:c2_start_it], X[c2_start_it:], c=c2_start_it, s=2, vmin=0, vmax=k)
-        s1.scatter(self._X, np.zeros(self.n), c=classifications, s=2, vmin=0, vmax=self.k)
-        s1.scatter([C_it[0], C_it[1]], (0, 0), c=list(range(0, self.k)), s=20)
+        s1.scatter(self._X, np.zeros(self.n), c=classifications, s=2, vmin=0, vmax=2)
+        s1.scatter([C_it[0], C_it[1]], (0, 0), c=list(range(0, 2)), s=20)
         # s1.scatter(C_it[0], C_it[1], c=list(range(0, k)), s=5, vmin=0, vmax=k)
         # s1.scatter([0, 1], [0, 1], c="white", s=0)
         # output a figure for iteration
@@ -87,7 +98,7 @@ class KMeansHeuristic:
         C_it = self.C_init  # Choose initial cluster centroids randomly with coordinates in [0,1]
         c2_start_it = self.n
         for it in range(self.max_iter + 1):
-            # classify X point to k clusters
+            # classify X point to 2 clusters
             c2_start_it = self.classify(C_it)
             # plot current iteration clusters
             # self.plot_iteration(c2_start_it, C_it, it)
@@ -126,3 +137,4 @@ class KMeansHeuristic:
 
         p2 = np.random.choice(self._P) if self._n_p > 0 else None
         return c1, c2, np.sum(deleted_points), p2
+
