@@ -17,7 +17,9 @@ class KMeansHeuristic:
         self._n2 = None  # number of points in cluster 2
         self.c1 = None  # center of cluster 1
         self.c2 = None  # center of cluster 2
-        self.p1 = self._X[-1]  # largest point in X
+        self._P = None  # points moved to cluster 2 after deletions
+        self._n_p = None  # number of points moved to cluster 2 after deletions
+        self._s_p = None # sum of points moved to cluster 2 after deletions
         # self._c2_start = None  # index of the first point classified to cluster 2
 
     #############################################
@@ -100,7 +102,6 @@ class KMeansHeuristic:
         return self.c1, self.c2
 
     def get_moved_points_to_c2(self, old_c2_start_it):
-        print('new', 'old', self._n1, old_c2_start_it)
         P = self._X[self._n1:old_c2_start_it]
         n_p = P.shape[0]
         s_p = np.sum(P)
@@ -119,9 +120,9 @@ class KMeansHeuristic:
         self._n2 = None  # number of points in cluster 2
         self.c1 = None  # center of cluster 1
         self.c2 = None  # center of cluster 2
-        print(f"Removed point: {deleted_points} from X")
+        # print(f"Removed point: {deleted_points} from X")
         c1, c2 = self.kmeans_heuristic()
-        P, n_p, s_p = self.get_moved_points_to_c2(old_c2_start_it)
+        self._P, self._n_p, self._s_p = self.get_moved_points_to_c2(old_c2_start_it)
 
-        p2 = np.random.choice(P) if n_p > 0 else None
-        return c1, c2, deleted_points, p2
+        p2 = np.random.choice(self._P) if self._n_p > 0 else None
+        return c1, c2, np.sum(deleted_points), p2
