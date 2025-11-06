@@ -1,6 +1,6 @@
-# k_means_attack
+# k-means-attack
 
-A compact Python project that simulates an adversarial k-means-attack on one-dimensional datasets. The code generates synthetic datasets (uniform or bimodal Gaussian mixture), runs a k-means heuristic for two clusters, simulates deletion of the largest points by an adversary, and attempts to reconstruct cluster membership / integer parameters from the remaining data.
+A Python project that simulates an adversarial k-means attack on one-dimensional datasets. The code generates synthetic datasets (uniform or bimodal Gaussian mixtures), runs a k-means heuristic for two clusters, simulates deletion of the largest points by an adversary, and attempts to reconstruct cluster membership by solving the equations via integer substitution.
 
 ---
 
