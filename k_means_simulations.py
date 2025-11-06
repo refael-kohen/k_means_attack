@@ -51,7 +51,7 @@ def run_simulations(n_simulations, num_deletions, disc_acc, n, uniform_dist, uni
     :param disc_acc: accuracy of the discritization of the domain
     :param uniform_dist: use the uniform distribution (if false use bimodal distribution)
     :param unif_range_min: minimum value of the range.
-    :param range_mas: maximum value of the range.
+    :param unif_range_max: maximum value of the range.
     :param n: number of points to sample from the range in each simulation.
     :param n_simulations:  number of simulations to run.
     :param num_deletions: number of largest points to delete by adversary.
